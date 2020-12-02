@@ -12,8 +12,9 @@
 #include <sgx_tseal.h>
 #include <sgx_tcrypto.h>
 #include <sgx_trts.h>
+#include <sgx_tprotected_fs.h>
 
-#define BUFLEN (1024U * 1024U * 50U)
+#define BUFLEN (1024U * 1024U * 3U)
 #define SGX_AESGCM_MAC_SIZE 16
 #define SGX_AESGCM_IV_SIZE 12
 #define USE_ENCRYPTION 1
@@ -117,6 +118,99 @@ extern "C" int unseal_data(size_t input_size, const void *input,
     if (rc != SGX_SUCCESS) return -2;
 
     *result_size = input_len;
+
+    return 0;
+}
+
+
+
+extern "C" int enc_infer(size_t has_input, const char *input_filename, const char *output_filename) {
+
+    if (!ModelNet) return -1;
+
+    SGX_FILE* fp;
+    size_t input_size;
+    uint8_t sgx_input[BUFLEN];
+    if(!input_filename){
+        input_size=0;
+    }
+    else{
+        fp = sgx_fopen(input_filename, "r", (sgx_key_128bit_t *)key);
+        if (!fp) {
+            printf("error: cannot open input file\n");
+            return -1;
+        }
+        sgx_fseek(fp, 0, SEEK_END);
+        uint64_t fend = sgx_ftell(fp);
+        sgx_fseek(fp, 0, SEEK_SET);
+        if (fend > sizeof(sgx_input)){
+	    printf("error: oversized input!\n");
+	    return -1;
+        }
+        if (fend <= 0) {
+            printf("error: cannot read input file\n");
+            return -1;
+        }
+        input_size = fend;
+        if (input_size != sgx_fread(sgx_input, 1, input_size, fp)) {
+            printf("error: cannot read input file\n");
+            return -1;
+        }
+        sgx_fclose(fp);
+    }
+
+    // Check input size requirement
+    if (input_size != 0) {
+        auto h_in = ModelNet->get_in_list().at(0);
+        auto input_tensor_size = h_in->get_dtype_size() * h_in->valid_size();
+        if (input_size != input_tensor_size) return -2;
+    }
+    
+    // Check output size requirement
+    auto h_out = ModelNet->get_out_list().at(0);
+    auto output_tensor_size = h_out->get_dtype_size() * h_out->valid_size();
+    if (output_tensor_size > BUFLEN) return -3;
+
+    if (input_size == 0) {
+        for (auto h_in : ModelNet->get_in_list()) {
+            fill_tensor_const(*h_in, 1);
+        }
+    } else {
+        auto start = static_cast<const float *>((void *)sgx_input);
+        for (auto h_in : ModelNet->get_in_list()) {
+            auto end = start + h_in->valid_size();
+            std::copy(start, end, static_cast<float *>(h_in->data()));
+            start = end;
+        }
+    }
+
+    ModelNet->prediction();
+    mkl_free_buffers();
+
+    auto p_float = static_cast<const float *>(h_out->data());
+
+#ifdef ENABLE_DEBUG
+    auto c = h_out->valid_size();
+    for (int i = 0; i < c; i++) {
+        float f = p_float[i];
+        printf("%f\n", f);
+    }
+#endif
+
+    std::copy(p_float, p_float + h_out->valid_size(), static_cast<float *>((void *)sgx_input));
+
+    size_t result_size = output_tensor_size;
+
+    fp = sgx_fopen(output_filename, "w", (sgx_key_128bit_t *)key);
+    if (!fp) {
+        printf("error: cannot open output file\n");
+        return -1;
+    }
+    if (result_size != sgx_fwrite(sgx_input, 1, result_size, fp)) {
+            printf("error: cannot write output file\n");
+            return -1;
+    }
+    sgx_fclose(fp);
 
     return 0;
 }

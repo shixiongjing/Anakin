@@ -5,7 +5,7 @@
 
 #include <CLI11.hpp>
 #include <asio.hpp>
-
+#include <sgx_tprotected_fs.h>
 sgx_enclave_id_t global_eid = 0;
 
 extern "C" int initialize_enclave(sgx_enclave_id_t *eid, const char *token_path, const char *enclave_name);
