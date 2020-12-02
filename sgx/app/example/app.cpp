@@ -10,11 +10,12 @@ sgx_enclave_id_t global_eid = 0;
 
 extern "C" int initialize_enclave(sgx_enclave_id_t *eid, const char *token_path, const char *enclave_name);
 
-#define SGX_INPUT_MAX (1024U * 1024U * 1U)
+#define SGX_INPUT_MAX (1024U * 1024U * 100U)
 uint8_t sgx_input[SGX_INPUT_MAX];
 
-#define SGX_OUTPUT_MAX (1024U * 1024U * 1U)
+#define SGX_OUTPUT_MAX (1024U * 1024U * 100U)
 uint8_t sgx_output[SGX_OUTPUT_MAX];
+std::chrono::duration<double> inf_time = std::chrono::duration<double>::zero(); 
 
 size_t do_infer(size_t input_size, const void *input,
                 size_t output_max_size, void *output) {
@@ -38,15 +39,33 @@ size_t do_infer(size_t input_size, const void *input,
 
     auto end = std::chrono::steady_clock::now();
     std::chrono::duration<double> elasped_sec = end - begin;
-
-    std::cout << elasped_sec.count()
-              << " seconds elapsed during inference" << std::endl;
+    inf_time += elasped_sec;
+    //std::cout << elasped_sec.count()
+              //<< " seconds elapsed during only inference" << std::endl;
 
     return result_size;
 }
 
 void do_test() {
     do_infer(0, nullptr, sizeof(sgx_output), sgx_output);
+
+#if ENABLE_DEBUG
+    auto f = reinterpret_cast<float *>(sgx_output);
+    auto n = result_size / sizeof(float);
+    for (int i = 0; i < n; ++i) {
+        std::cout << f[i] << std::endl;
+    }
+#endif
+}
+
+void do_test_o() {
+    size_t output_size = do_infer(0, nullptr, sizeof(sgx_output), sgx_output);
+    FILE *output_file = fopen("temp_result.out", "wb");
+    if (output_size != fwrite(sgx_output, 1, output_size, output_file)) {
+        std::cerr << "error: cannot write output file" << std::endl;
+        exit(1);
+    }
+    fclose(output_file);
 
 #if ENABLE_DEBUG
     auto f = reinterpret_cast<float *>(sgx_output);
@@ -87,7 +106,13 @@ void do_local(const std::string &input_path, const std::string &output_path) {
 
     fclose(input_file);
 
-    do_infer(input_size, sgx_input, sizeof(sgx_output), sgx_output);
+    size_t output_size = do_infer(input_size, sgx_input, sizeof(sgx_output), sgx_output);
+    FILE *output_file = fopen(output_path.c_str(), "wb");
+    if (output_size != fwrite(sgx_output, 1, output_size, output_file)) {
+        std::cerr << "error: cannot write output file" << std::endl;
+        exit(1);
+    }
+    fclose(output_file);
 }
 
 void do_net(const std::string &outgoing_ip, int port) {
@@ -175,16 +200,28 @@ int main(int argc, char const *argv[]) {
     }
 
     std::cout << "model ready" << std::endl;
+    auto begin = std::chrono::steady_clock::now();
 
     if (app.got_subcommand(subcmd_test)) {
-        do_test();
+        for(int i=0;i<1;i++){
+	do_test_o();
+	}
     } else if (app.got_subcommand(subcmd_local)) {
-        do_local(arg_ifile, arg_ofile);
+        for(int i=0;i<1;i++){
+	do_local(arg_ifile, arg_ofile);
+	}
     } else if (app.got_subcommand(subcmd_net)) {
         do_net(arg_oip, arg_port);
     } else {
         abort();
     }
+    auto end = std::chrono::steady_clock::now();
+    std::chrono::duration<double> elasped_sec = end - begin;
+    std::cout << elasped_sec.count()
+              << " seconds elapsed during inference + data loading/decryption" << std::endl;
+
+    std::cout << inf_time.count()
+              << " seconds elapsed during only inference" << std::endl;
 
     return 0;
 }

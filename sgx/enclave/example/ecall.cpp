@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include "stdio.h"
+#include "stdlib.h"
 
 #include "graph.h"
 #include "net.h"
@@ -9,6 +10,14 @@
 #include "mkl.h"
 
 #include <sgx_tseal.h>
+#include <sgx_tcrypto.h>
+#include <sgx_trts.h>
+
+#define BUFLEN (1024U * 1024U * 50U)
+#define SGX_AESGCM_MAC_SIZE 16
+#define SGX_AESGCM_IV_SIZE 12
+#define USE_ENCRYPTION 1
+static sgx_aes_gcm_128bit_key_t key = { 0x0, 0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x7, 0x8, 0x9, 0xa, 0xb, 0xc, 0xd, 0xe, 0xf };
 
 namespace {
 
@@ -21,13 +30,51 @@ std::unique_ptr<Net<X86, Precision::FP32>> ModelNet;
 
 namespace anakin {
 
+
+extern "C" void decryptMessage(char *encMessageIn, size_t len, char *decMessageOut, size_t lenOut)
+{
+	uint8_t *encMessage = (uint8_t *) encMessageIn;
+	uint8_t p_dst[BUFLEN] = {0};
+
+	sgx_rijndael128GCM_decrypt(
+		&key,
+		encMessage + SGX_AESGCM_MAC_SIZE + SGX_AESGCM_IV_SIZE,
+		lenOut,
+		p_dst,
+		encMessage + SGX_AESGCM_MAC_SIZE, SGX_AESGCM_IV_SIZE,
+		NULL, 0,
+		(sgx_aes_gcm_128bit_tag_t *) encMessage);
+	memcpy(decMessageOut, p_dst, lenOut);
+        //emit_debug((char *) p_dst);
+}
+
+extern "C" void encryptMessage(char *decMessageIn, size_t len, char *encMessageOut, size_t lenOut)
+{
+	uint8_t *origMessage = (uint8_t *) decMessageIn;
+	uint8_t p_dst[BUFLEN] = {0};
+
+	// Generate the IV (nonce)
+	sgx_read_rand(p_dst + SGX_AESGCM_MAC_SIZE, SGX_AESGCM_IV_SIZE);
+
+	sgx_rijndael128GCM_encrypt(
+		&key,
+		origMessage, len,
+		p_dst + SGX_AESGCM_MAC_SIZE + SGX_AESGCM_IV_SIZE,
+		p_dst + SGX_AESGCM_MAC_SIZE, SGX_AESGCM_IV_SIZE,
+		NULL, 0,
+		(sgx_aes_gcm_128bit_tag_t *) (p_dst));
+	memcpy(encMessageOut,p_dst,lenOut);
+}
+
+
+
 extern "C" int setup_model(const char *model_name) {
     ModelGraph.reset(new graph::Graph<X86, Precision::FP32>());
     ModelGraph->load(model_name);
 #ifdef ENABLE_DEBUG
     printf("model loaded\n");
 #endif
-
+    //ModelGraph->ResetBatchSize("input_0", 50);
     ModelGraph->Optimize();
 #ifdef ENABLE_DEBUG
     printf("model optimized\n");
@@ -80,11 +127,32 @@ extern "C" int infer(size_t input_size, const void *input,
 
     if (!ModelNet) return -1;
 
+    uint8_t p_dst[BUFLEN] = {0};
+
+    for(int j=0;j<100;j++){
+
     // Check input size requirement
     if (input_size != 0) {
+        //decrypt and change input size
+	size_t actual_input_size = input_size;
+        #ifdef USE_ENCRYPTION
+        actual_input_size = input_size - SGX_AESGCM_MAC_SIZE - SGX_AESGCM_IV_SIZE;
+	//printf("before decryption\n");
+        sgx_rijndael128GCM_decrypt(
+		&key,
+		input + SGX_AESGCM_MAC_SIZE + SGX_AESGCM_IV_SIZE,
+		actual_input_size,
+		p_dst,
+		input + SGX_AESGCM_MAC_SIZE, SGX_AESGCM_IV_SIZE,
+		NULL, 0,
+		(sgx_aes_gcm_128bit_tag_t *) input);
+	//memcpy(input, p_dst, actual_input_size);
+	#endif
+
+
         auto h_in = ModelNet->get_in_list().at(0);
         auto input_tensor_size = h_in->get_dtype_size() * h_in->valid_size();
-        if (input_size != input_tensor_size) return -2;
+        if (actual_input_size != input_tensor_size) return -2;
     }
     
     // Check output size requirement
@@ -97,7 +165,8 @@ extern "C" int infer(size_t input_size, const void *input,
             fill_tensor_const(*h_in, 1);
         }
     } else {
-        auto start = static_cast<const float *>(input);
+        //auto start = static_cast<const float *>(input);
+	auto start = static_cast<const float *>((float *)p_dst);
         for (auto h_in : ModelNet->get_in_list()) {
             auto end = start + h_in->valid_size();
             std::copy(start, end, static_cast<float *>(h_in->data()));
@@ -105,9 +174,11 @@ extern "C" int infer(size_t input_size, const void *input,
         }
     }
 
-    ModelNet->prediction();
-    mkl_free_buffers();
-
+    for(int i=0;i<1;i++){
+        ModelNet->prediction();
+	mkl_free_buffers();
+    }
+    //printf("infer finished\n");
     auto p_float = static_cast<const float *>(h_out->data());
 
 #ifdef ENABLE_DEBUG
@@ -121,7 +192,25 @@ extern "C" int infer(size_t input_size, const void *input,
     std::copy(p_float, p_float + h_out->valid_size(), static_cast<float *>(output));
 
     *result_size = output_tensor_size;
+    #ifdef USE_ENCRYPTION
+    *result_size += SGX_AESGCM_MAC_SIZE + SGX_AESGCM_IV_SIZE;
+    //printf("before encryption\n");
+    //uint8_t p_dst2[BUFLEN] = {0};
 
+	// Generate the IV (nonce)
+    sgx_read_rand(p_dst + SGX_AESGCM_MAC_SIZE, SGX_AESGCM_IV_SIZE);
+
+    sgx_rijndael128GCM_encrypt(
+    	&key,
+	(uint8_t *)output, output_tensor_size,
+	p_dst + SGX_AESGCM_MAC_SIZE + SGX_AESGCM_IV_SIZE,
+	p_dst + SGX_AESGCM_MAC_SIZE, SGX_AESGCM_IV_SIZE,
+	NULL, 0,
+	(sgx_aes_gcm_128bit_tag_t *) (p_dst));
+    memcpy(output, p_dst, output_tensor_size + SGX_AESGCM_MAC_SIZE + SGX_AESGCM_IV_SIZE);
+
+    #endif
+    }
     return 0;
 }
 

@@ -1,5 +1,17 @@
 enclave {
     trusted {
+        public void decryptMessage(
+	    [in,size=len] char *encMessageIn, 
+	    size_t len, 
+	    [out,size=lenOut] char *decMessageOut, 
+	    size_t lenOut);
+
+	public void encryptMessage(
+	    [in,size=len] char *decMessageIn, 
+	    size_t len, 
+	    [out,size=lenOut] char *encMessageOut, 
+	    size_t lenOut);
+
         public int setup_model([in, string] const char *model_name);
 
         public int seal_data(
