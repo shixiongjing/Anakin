@@ -12,9 +12,9 @@
 #include <sgx_tseal.h>
 #include <sgx_tcrypto.h>
 #include <sgx_trts.h>
-#include <sgx_tprotected_fs.h>
+//#include <sgx_tprotected_fs.h>
 
-#define BUFLEN (1024U * 1024U * 3U)
+#define BUFLEN (1024U * 1024U * 1U)
 #define SGX_AESGCM_MAC_SIZE 16
 #define SGX_AESGCM_IV_SIZE 12
 #define USE_ENCRYPTION 1
@@ -123,7 +123,7 @@ extern "C" int unseal_data(size_t input_size, const void *input,
 }
 
 
-
+/*
 extern "C" int enc_infer(size_t has_input, const char *input_filename, const char *output_filename) {
 
     if (!ModelNet) return -1;
@@ -213,7 +213,7 @@ extern "C" int enc_infer(size_t has_input, const char *input_filename, const cha
     sgx_fclose(fp);
 
     return 0;
-}
+}*/
 
 extern "C" int infer(size_t input_size, const void *input,
                      size_t output_max_size, void *output,
@@ -223,7 +223,6 @@ extern "C" int infer(size_t input_size, const void *input,
 
     uint8_t p_dst[BUFLEN] = {0};
 
-    for(int j=0;j<100;j++){
 
     // Check input size requirement
     if (input_size != 0) {
@@ -304,7 +303,6 @@ extern "C" int infer(size_t input_size, const void *input,
     memcpy(output, p_dst, output_tensor_size + SGX_AESGCM_MAC_SIZE + SGX_AESGCM_IV_SIZE);
 
     #endif
-    }
     return 0;
 }
 

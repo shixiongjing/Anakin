@@ -134,7 +134,7 @@ target_link_libraries(anakin_enclave
 # link standard sgx libraries
 target_link_libraries(anakin_enclave
   -Wl,--start-group
-  -lsgx_tcxx -lsgx_tstdc -lsgx_tcrypto -lsgx_tprotected_fs -lsgx_tservice${SGX_LIB_TYPE}
+  -lsgx_tcxx -lsgx_tstdc -lsgx_tcrypto -lsgx_tservice${SGX_LIB_TYPE}
   -Wl,--end-group
 )
 
@@ -159,7 +159,6 @@ target_link_libraries(anakin_app
   -L${SGX_SDK}/sdk_libs
   -lsgx_urts${SGX_LIB_TYPE}
   -lsgx_uae_service${SGX_LIB_TYPE}
-  -lsgx_uprotected_fs${SGX_LIB_TYPE}
   -lpthread
 )
 

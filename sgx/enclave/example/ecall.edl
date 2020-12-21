@@ -1,6 +1,5 @@
 enclave {
-    from "sgx_tprotected_fs.edl" import *;
-    include "sgx_tprotected_fs.h"
+
     trusted {
         public void decryptMessage(
 	    [in,size=len] char *encMessageIn, 
@@ -30,11 +29,6 @@ enclave {
                                      size_t max_out_size,
             [out, size=max_out_size] void *results,
             [out]                    size_t *result_size
-        );
-
-        public int enc_infer(
-            [in, string]             const char *input_filename, 
-            [in, string]             const char *output_filename
         );
 
         public int infer(

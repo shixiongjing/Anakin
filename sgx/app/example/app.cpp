@@ -5,15 +5,15 @@
 
 #include <CLI11.hpp>
 #include <asio.hpp>
-#include <sgx_tprotected_fs.h>
-sgx_enclave_id_t global_eid = 0;
+//#include <sgx_tprotected_fs.h>
+sgx_enclave_id_t global_eid = 1;
 
 extern "C" int initialize_enclave(sgx_enclave_id_t *eid, const char *token_path, const char *enclave_name);
 
-#define SGX_INPUT_MAX (1024U * 1024U * 100U)
+#define SGX_INPUT_MAX (1024U * 1024U * 1U)
 uint8_t sgx_input[SGX_INPUT_MAX];
 
-#define SGX_OUTPUT_MAX (1024U * 1024U * 100U)
+#define SGX_OUTPUT_MAX (1024U * 1024U * 1U)
 uint8_t sgx_output[SGX_OUTPUT_MAX];
 std::chrono::duration<double> inf_time = std::chrono::duration<double>::zero(); 
 
@@ -158,6 +158,65 @@ void do_net(const std::string &outgoing_ip, int port) {
     }
 }
 
+void do_test_net(const std::string &outgoing_ip, int port) {
+    using asio::ip::tcp;
+
+    asio::io_service io_service;
+    asio::streambuf input_buf;
+    asio::error_code error;
+
+    
+        
+
+        size_t result_size =
+            do_infer(0, nullptr, sizeof(sgx_output), sgx_output);
+        std::cout << "infer finish, start sending..." << std::endl;
+        tcp::resolver resolver(io_service);
+        tcp::resolver::query query(outgoing_ip, std::to_string(port));
+        tcp::resolver::iterator endpoint_iterator = resolver.resolve(query);
+
+        try {
+            tcp::socket socket(io_service);
+            asio::connect(socket, endpoint_iterator);
+            socket.write_some(asio::buffer(sgx_output, result_size));
+        } catch (std::exception &e) {
+            std::cerr << e.what() << std::endl;
+            exit(1);
+        }
+}
+
+void do_end_net(const std::string &outgoing_ip, int port) {
+    using asio::ip::tcp;
+
+    asio::io_service io_service;
+    asio::streambuf input_buf;
+    asio::error_code error;
+
+    while (true) {
+        input_buf.consume(input_buf.size());
+
+        try {
+            tcp::acceptor acceptor(io_service,
+                                   tcp::endpoint(tcp::v4(), port));
+
+            tcp::socket socket(io_service);
+            acceptor.accept(socket);
+
+            asio::read(socket, input_buf, error);
+        } catch (std::exception &e) {
+            std::cerr << e.what() << std::endl;
+            exit(1);
+        }
+        std::cout << "received data, start infer..." << std::endl;
+        size_t result_size =
+            do_infer(input_buf.size(),
+                     asio::buffer_cast<const char *>(input_buf.data()),
+                     sizeof(sgx_output), sgx_output);
+        std::cout << "end infer..." << std::endl;
+        
+    }
+}
+
 int main(int argc, char const *argv[]) {
     CLI::App app{"Anakin inference interface for SGX"};
 
@@ -203,15 +262,16 @@ int main(int argc, char const *argv[]) {
     auto begin = std::chrono::steady_clock::now();
 
     if (app.got_subcommand(subcmd_test)) {
-        for(int i=0;i<1;i++){
+        for(int i=0;i<30;i++){
 	do_test_o();
+	//do_test_net("130.203.157.185", 20060);
 	}
     } else if (app.got_subcommand(subcmd_local)) {
-        for(int i=0;i<1;i++){
+        for(int i=0;i<30;i++){
 	do_local(arg_ifile, arg_ofile);
 	}
     } else if (app.got_subcommand(subcmd_net)) {
-        do_net(arg_oip, arg_port);
+        do_end_net(arg_oip, arg_port);
     } else {
         abort();
     }
