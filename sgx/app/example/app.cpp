@@ -3,6 +3,7 @@
 #include "enclave_u.h"
 #include "sgx_urts.h"
 
+#include <ctime>
 #include <CLI11.hpp>
 #include <asio.hpp>
 //#include <sgx_tprotected_fs.h>
@@ -10,12 +11,13 @@ sgx_enclave_id_t global_eid = 1;
 
 extern "C" int initialize_enclave(sgx_enclave_id_t *eid, const char *token_path, const char *enclave_name);
 
-#define SGX_INPUT_MAX (1024U * 1024U * 1U)
+#define SGX_INPUT_MAX (1024U * 1024U * 2U)
 uint8_t sgx_input[SGX_INPUT_MAX];
 
-#define SGX_OUTPUT_MAX (1024U * 1024U * 1U)
+#define SGX_OUTPUT_MAX (1024U * 1024U * 2U)
 uint8_t sgx_output[SGX_OUTPUT_MAX];
 std::chrono::duration<double> inf_time = std::chrono::duration<double>::zero(); 
+
 
 size_t do_infer(size_t input_size, const void *input,
                 size_t output_max_size, void *output) {
@@ -23,6 +25,9 @@ size_t do_infer(size_t input_size, const void *input,
     size_t result_size = 0;
 
     auto begin = std::chrono::steady_clock::now();
+    std::cout << "start time: " <<
+    std::chrono::duration_cast<std::chrono::milliseconds>
+    (std::chrono::system_clock::now().time_since_epoch()).count();
 
     int status = infer(global_eid, &ecall_retcode, input_size, input,
                        output_max_size, output, &result_size);
@@ -37,7 +42,14 @@ size_t do_infer(size_t input_size, const void *input,
         exit(1);
     }
 
-    auto end = std::chrono::steady_clock::now();
+    const auto end = std::chrono::steady_clock::now();
+    std::cout << "end time: " <<
+    std::chrono::duration_cast<std::chrono::milliseconds>
+    (std::chrono::system_clock::now().time_since_epoch()).count();
+
+
+
+
     std::chrono::duration<double> elasped_sec = end - begin;
     inf_time += elasped_sec;
     //std::cout << elasped_sec.count()
@@ -144,7 +156,7 @@ void do_net(const std::string &outgoing_ip, int port) {
                      sizeof(sgx_output), sgx_output);
 
         tcp::resolver resolver(io_service);
-        tcp::resolver::query query(outgoing_ip, std::to_string(port));
+        tcp::resolver::query query(outgoing_ip, std::to_string(12346));
         tcp::resolver::iterator endpoint_iterator = resolver.resolve(query);
 
         try {
@@ -262,12 +274,12 @@ int main(int argc, char const *argv[]) {
     auto begin = std::chrono::steady_clock::now();
 
     if (app.got_subcommand(subcmd_test)) {
-        for(int i=0;i<30;i++){
-	do_test_o();
-	//do_test_net("130.203.157.185", 20060);
+        for(int i=0;i<1;i++){
+	//do_test_o();
+	    do_test_net("130.203.157.185", 12345);
 	}
     } else if (app.got_subcommand(subcmd_local)) {
-        for(int i=0;i<30;i++){
+        for(int i=0;i<100;i++){
 	do_local(arg_ifile, arg_ofile);
 	}
     } else if (app.got_subcommand(subcmd_net)) {

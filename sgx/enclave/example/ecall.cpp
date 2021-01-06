@@ -14,7 +14,7 @@
 #include <sgx_trts.h>
 //#include <sgx_tprotected_fs.h>
 
-#define BUFLEN (1024U * 1024U * 1U)
+#define BUFLEN (1024U * 1024U * 2U)
 #define SGX_AESGCM_MAC_SIZE 16
 #define SGX_AESGCM_IV_SIZE 12
 #define USE_ENCRYPTION 1
