@@ -149,16 +149,16 @@ void do_net(const std::string &outgoing_ip, int port) {
             std::cerr << e.what() << std::endl;
             exit(1);
         }
-
+        std::cout << "received data, start infer..." << std::endl;
         size_t result_size =
             do_infer(input_buf.size(),
                      asio::buffer_cast<const char *>(input_buf.data()),
                      sizeof(sgx_output), sgx_output);
 
         tcp::resolver resolver(io_service);
-        tcp::resolver::query query(outgoing_ip, std::to_string(12346));
+        tcp::resolver::query query(outgoing_ip, std::to_string(port));
         tcp::resolver::iterator endpoint_iterator = resolver.resolve(query);
-
+        std::cout << "end infer, start sending..." << std::endl;
         try {
             tcp::socket socket(io_service);
             asio::connect(socket, endpoint_iterator);
@@ -177,12 +177,8 @@ void do_test_net(const std::string &outgoing_ip, int port) {
     asio::streambuf input_buf;
     asio::error_code error;
 
-    
-        
 
-        size_t result_size =
-            do_infer(0, nullptr, sizeof(sgx_output), sgx_output);
-        std::cout << "infer finish, start sending..." << std::endl;
+
         tcp::resolver resolver(io_service);
         tcp::resolver::query query(outgoing_ip, std::to_string(port));
         tcp::resolver::iterator endpoint_iterator = resolver.resolve(query);
@@ -190,7 +186,11 @@ void do_test_net(const std::string &outgoing_ip, int port) {
         try {
             tcp::socket socket(io_service);
             asio::connect(socket, endpoint_iterator);
-            socket.write_some(asio::buffer(sgx_output, result_size));
+            for(int i=0;i<1;i++){
+	        size_t result_size = do_infer(0, nullptr, sizeof(sgx_output), sgx_output);
+		std::cout << "infer finish, start sending..." << std::endl;
+                socket.write_some(asio::buffer(sgx_output, result_size));
+            }
         } catch (std::exception &e) {
             std::cerr << e.what() << std::endl;
             exit(1);
