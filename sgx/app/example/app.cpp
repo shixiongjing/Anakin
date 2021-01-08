@@ -25,10 +25,10 @@ size_t do_infer(size_t input_size, const void *input,
     size_t result_size = 0;
 
     auto begin = std::chrono::steady_clock::now();
-    std::cout << "start time: " <<
+/*    std::cout << "start time: " <<
     std::chrono::duration_cast<std::chrono::milliseconds>
     (std::chrono::system_clock::now().time_since_epoch()).count();
-
+*/
     int status = infer(global_eid, &ecall_retcode, input_size, input,
                        output_max_size, output, &result_size);
 
@@ -43,10 +43,10 @@ size_t do_infer(size_t input_size, const void *input,
     }
 
     const auto end = std::chrono::steady_clock::now();
-    std::cout << "end time: " <<
+/*    std::cout << "end time: " <<
     std::chrono::duration_cast<std::chrono::milliseconds>
     (std::chrono::system_clock::now().time_since_epoch()).count();
-
+*/
 
 
 
@@ -272,6 +272,9 @@ int main(int argc, char const *argv[]) {
 
     std::cout << "model ready" << std::endl;
     auto begin = std::chrono::steady_clock::now();
+    std::cout << "infer start time: " <<
+    std::chrono::duration_cast<std::chrono::milliseconds>
+    (std::chrono::system_clock::now().time_since_epoch()).count() << std::endl;
 
     if (app.got_subcommand(subcmd_test)) {
         for(int i=0;i<1;i++){
@@ -287,6 +290,11 @@ int main(int argc, char const *argv[]) {
     } else {
         abort();
     }
+
+    std::cout << "infer end time: " <<
+    std::chrono::duration_cast<std::chrono::milliseconds>
+    (std::chrono::system_clock::now().time_since_epoch()).count() << std::endl;
+
     auto end = std::chrono::steady_clock::now();
     std::chrono::duration<double> elasped_sec = end - begin;
     std::cout << elasped_sec.count()
