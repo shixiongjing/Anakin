@@ -6,6 +6,9 @@
 #include <ctime>
 #include <CLI11.hpp>
 #include <asio.hpp>
+
+//#define PRINTINFTIME 1
+
 //#include <sgx_tprotected_fs.h>
 sgx_enclave_id_t global_eid = 1;
 
@@ -25,10 +28,11 @@ size_t do_infer(size_t input_size, const void *input,
     size_t result_size = 0;
 
     auto begin = std::chrono::steady_clock::now();
+    #ifdef PRINTINFTIME
     std::cout << "start time: " <<
     std::chrono::duration_cast<std::chrono::milliseconds>
-    (std::chrono::system_clock::now().time_since_epoch()).count();
-
+    (std::chrono::system_clock::now().time_since_epoch()).count() << std::endl;
+    #endif
     int status = infer(global_eid, &ecall_retcode, input_size, input,
                        output_max_size, output, &result_size);
 
@@ -43,10 +47,11 @@ size_t do_infer(size_t input_size, const void *input,
     }
 
     const auto end = std::chrono::steady_clock::now();
+    #ifdef PRINTINFTIME
     std::cout << "end time: " <<
     std::chrono::duration_cast<std::chrono::milliseconds>
-    (std::chrono::system_clock::now().time_since_epoch()).count();
-
+    (std::chrono::system_clock::now().time_since_epoch()).count() << std::endl;
+    #endif
 
 
 
@@ -278,11 +283,11 @@ int main(int argc, char const *argv[]) {
 */
     if (app.got_subcommand(subcmd_test)) {
         for(int i=0;i<1;i++){
-	//do_test_o();
-	    do_test_net("130.203.157.185", 12345);
+	    do_test_o();
+	    //do_test_net("130.203.153.40", 12345);
 	}
     } else if (app.got_subcommand(subcmd_local)) {
-        for(int i=0;i<100;i++){
+        for(int i=0;i<1;i++){
 	do_local(arg_ifile, arg_ofile);
 	}
     } else if (app.got_subcommand(subcmd_net)) {
