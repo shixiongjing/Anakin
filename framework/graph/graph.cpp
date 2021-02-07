@@ -73,6 +73,14 @@ void Graph<Ttype, Ptype>::Reshape(std::string in_name,
 }
 
 template<typename Ttype, Precision Ptype>
+void Graph<Ttype, Ptype>::PrintStructure(){
+    printf("Structure:");
+    for (auto x : (*this)){
+        printf((x.first + "\n").c_str());
+    }
+}
+
+template<typename Ttype, Precision Ptype>
 void Graph<Ttype, Ptype>::ResetBatchSize(std::string in_name,
         const int batch_size) EXCLUSIVE_LOCKS_REQUIRED(_mut) {
     std::unique_lock<std::mutex> lock(this->_mut);

@@ -89,6 +89,8 @@ public:
 
     void ResetBatchSize(std::string in_name, const int batch_size);
 
+    /// print structure
+    void PrintStructure();
 public:
 
     /**

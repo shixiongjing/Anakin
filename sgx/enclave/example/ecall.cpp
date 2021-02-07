@@ -75,6 +75,7 @@ extern "C" int setup_model(const char *model_name) {
 #ifdef ENABLE_DEBUG
     printf("model loaded\n");
 #endif
+    ModelGraph->PrintStructure();
     //ModelGraph->ResetBatchSize("input_0", 50);
     ModelGraph->Optimize();
 #ifdef ENABLE_DEBUG
