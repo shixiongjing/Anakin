@@ -14,7 +14,7 @@ sgx_enclave_id_t global_eid = 1;
 
 extern "C" int initialize_enclave(sgx_enclave_id_t *eid, const char *token_path, const char *enclave_name);
 
-#define SGX_INPUT_MAX (1024U * 1024U * 2U)
+#define SGX_INPUT_MAX (1024U * 1024U * 5U)
 uint8_t sgx_input[SGX_INPUT_MAX];
 
 #define SGX_OUTPUT_MAX (1024U * 1024U * 2U)
@@ -282,12 +282,12 @@ int main(int argc, char const *argv[]) {
     (std::chrono::system_clock::now().time_since_epoch()).count() << std::endl;
 */
     if (app.got_subcommand(subcmd_test)) {
-        for(int i=0;i<1;i++){
+        for(int i=0;i<30;i++){
 	    do_test_o();
 	    //do_test_net("130.203.153.40", 12345);
 	}
     } else if (app.got_subcommand(subcmd_local)) {
-        for(int i=0;i<1;i++){
+        for(int i=0;i<30;i++){
 	do_local(arg_ifile, arg_ofile);
 	}
     } else if (app.got_subcommand(subcmd_net)) {
