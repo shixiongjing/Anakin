@@ -7,7 +7,7 @@
 #include <CLI11.hpp>
 #include <asio.hpp>
 
-//#define PRINTINFTIME 1
+#define PRINTINFTIME 1
 
 //#include <sgx_tprotected_fs.h>
 sgx_enclave_id_t global_eid = 1;
