@@ -6,7 +6,7 @@
 #include <ctime>
 #include <CLI11.hpp>
 #include <asio.hpp>
-
+#include <thread>
 //#define PRINTINFTIME 1
 
 //#include <sgx_tprotected_fs.h>
@@ -191,10 +191,16 @@ void do_test_net(const std::string &outgoing_ip, int port) {
         try {
             tcp::socket socket(io_service);
             asio::connect(socket, endpoint_iterator);
-            for(int i=0;i<1;i++){
-	        size_t result_size = do_infer(0, nullptr, sizeof(sgx_output), sgx_output);
-		std::cout << "infer finish, start sending..." << std::endl;
-                socket.write_some(asio::buffer(sgx_output, result_size));
+            for(int i=1;i<15;i++){
+	        //size_t result_size = do_infer(0, nullptr, sizeof(sgx_output), sgx_output);
+		std::this_thread::sleep_for(std::chrono::nanoseconds(1000000000));
+                size_t result_size = 1048576*5*i;
+                uint8_t *tp_buf = (uint8_t *)malloc(result_size);
+                std::cout << "size: " << i*5 << " MB" << std::endl;
+                std::cout << "Send time: " <<
+                std::chrono::duration_cast<std::chrono::milliseconds>
+                (std::chrono::system_clock::now().time_since_epoch()).count() << std::endl;
+                socket.write_some(asio::buffer(tp_buf, result_size));
             }
         } catch (std::exception &e) {
             std::cerr << e.what() << std::endl;
@@ -220,17 +226,20 @@ void do_end_net(const std::string &outgoing_ip, int port) {
             acceptor.accept(socket);
 
             asio::read(socket, input_buf, error);
+            std::cout <<
+        std::chrono::duration_cast<std::chrono::milliseconds>
+        (std::chrono::system_clock::now().time_since_epoch()).count() << std::endl;
         } catch (std::exception &e) {
             std::cerr << e.what() << std::endl;
             exit(1);
         }
-        std::cout << "received data, start infer..." << std::endl;
+        /*std::cout << "received data, start infer..." << std::endl;
         size_t result_size =
             do_infer(input_buf.size(),
                      asio::buffer_cast<const char *>(input_buf.data()),
                      sizeof(sgx_output), sgx_output);
         std::cout << "end infer..." << std::endl;
-        
+        */
     }
 }
 
@@ -256,7 +265,7 @@ int main(int argc, char const *argv[]) {
     subcmd_net->add_option("port", arg_port);
 
     CLI11_PARSE(app, argc, argv);
-
+/*
     if (initialize_enclave(&global_eid, "anakin_enclave.token", "anakin_enclave.signed") < 0) {
         std::cerr << "error: fail to initialize enclave." << std::endl;
         return 1;
@@ -274,7 +283,7 @@ int main(int argc, char const *argv[]) {
         std::cerr << "error: invalid anakin model." << std::endl;
         return 1;
     }
-
+*/
     std::cout << "model ready" << std::endl;
     auto begin = std::chrono::steady_clock::now();
 /*    std::cout << "infer start time: " <<
@@ -283,8 +292,8 @@ int main(int argc, char const *argv[]) {
 */
     if (app.got_subcommand(subcmd_test)) {
         for(int i=0;i<30;i++){
-	    do_test();
-	    //do_test_net("130.203.153.40", 12345);
+	    //do_test();
+	    do_test_net("130.203.157.185", 12345);
 	}
     } else if (app.got_subcommand(subcmd_local)) {
         for(int i=0;i<1;i++){
