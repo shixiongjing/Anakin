@@ -7,10 +7,14 @@
 #include <CLI11.hpp>
 #include <asio.hpp>
 
+#include <sys/types.h>
+#include <thread>
 //#define PRINTINFTIME 1
-
+//#define FORKTEST
+#define THREAD_NUM 2
 //#include <sgx_tprotected_fs.h>
-sgx_enclave_id_t global_eid = 1;
+sgx_enclave_id_t global_eid = 0;
+using namespace std;
 
 extern "C" int initialize_enclave(sgx_enclave_id_t *eid, const char *token_path, const char *enclave_name);
 
@@ -63,8 +67,23 @@ size_t do_infer(size_t input_size, const void *input,
     return result_size;
 }
 
+void thread_infer(){
+    for(int i=0;i<30;i++){
+        do_infer(0, nullptr, sizeof(sgx_output), sgx_output);
+    }
+}
+
 void do_test() {
-    do_infer(0, nullptr, sizeof(sgx_output), sgx_output);
+    thread trd[THREAD_NUM];
+    for (int i = 0; i< THREAD_NUM; i++)
+    {
+        trd[i] = thread(thread_infer);
+    }
+    for (int i = 0; i < THREAD_NUM; i++)
+    {
+        trd[i].join();
+    }
+    //do_infer(0, nullptr, sizeof(sgx_output), sgx_output);
 
 #if ENABLE_DEBUG
     auto f = reinterpret_cast<float *>(sgx_output);
@@ -257,6 +276,17 @@ int main(int argc, char const *argv[]) {
 
     CLI11_PARSE(app, argc, argv);
 
+    #ifdef FORKTEST
+    if(fork()==0){
+        global_eid = 1;
+        std::cout << "pc " << global_eid << " start."  << std::endl;
+    }
+    else{
+        global_eid = 2;
+        std::cout << "pc " << global_eid << " start."  << std::endl;
+    }
+    #endif
+
     if (initialize_enclave(&global_eid, "anakin_enclave.token", "anakin_enclave.signed") < 0) {
         std::cerr << "error: fail to initialize enclave." << std::endl;
         return 1;
@@ -277,12 +307,13 @@ int main(int argc, char const *argv[]) {
 
     std::cout << "model ready" << std::endl;
     auto begin = std::chrono::steady_clock::now();
-/*    std::cout << "infer start time: " <<
+
+    std::cout << global_eid << " pc infer start time: " <<
     std::chrono::duration_cast<std::chrono::milliseconds>
     (std::chrono::system_clock::now().time_since_epoch()).count() << std::endl;
-*/
+
     if (app.got_subcommand(subcmd_test)) {
-        for(int i=0;i<30;i++){
+        for(int i=0;i<1;i++){
 	    do_test();
 	    //do_test_net("130.203.153.40", 12345);
 	}
@@ -296,10 +327,13 @@ int main(int argc, char const *argv[]) {
         abort();
     }
 
-  /*  std::cout << "infer end time: " <<
+
+    std::cout << global_eid << " pc infer end time: " <<
     std::chrono::duration_cast<std::chrono::milliseconds>
     (std::chrono::system_clock::now().time_since_epoch()).count() << std::endl;
-*/
+
+
+
     auto end = std::chrono::steady_clock::now();
     std::chrono::duration<double> elasped_sec = end - begin;
     std::cout << elasped_sec.count()
