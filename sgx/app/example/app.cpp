@@ -183,29 +183,30 @@ void do_test_net(const std::string &outgoing_ip, int port) {
     asio::error_code error;
 
 
-
+        for(int i=11;i<50;i++){
         tcp::resolver resolver(io_service);
         tcp::resolver::query query(outgoing_ip, std::to_string(port));
         tcp::resolver::iterator endpoint_iterator = resolver.resolve(query);
 
+        std::this_thread::sleep_for(std::chrono::nanoseconds(10000000000));
+        size_t result_size = 1048576*1*i;
+        uint8_t *tp_buf = (uint8_t *)malloc(result_size);
+        //std::cout << "size: " << i*1 << " MB" << std::endl;
         try {
             tcp::socket socket(io_service);
             asio::connect(socket, endpoint_iterator);
-            for(int i=1;i<15;i++){
 	        //size_t result_size = do_infer(0, nullptr, sizeof(sgx_output), sgx_output);
-		std::this_thread::sleep_for(std::chrono::nanoseconds(1000000000));
-                size_t result_size = 1048576*5*i;
-                uint8_t *tp_buf = (uint8_t *)malloc(result_size);
-                std::cout << "size: " << i*5 << " MB" << std::endl;
-                std::cout << "Send time: " <<
+                std::cout <<
                 std::chrono::duration_cast<std::chrono::milliseconds>
                 (std::chrono::system_clock::now().time_since_epoch()).count() << std::endl;
                 socket.write_some(asio::buffer(tp_buf, result_size));
-            }
+                free(tp_buf);
+            
         } catch (std::exception &e) {
             std::cerr << e.what() << std::endl;
             exit(1);
         }
+     }
 }
 
 void do_end_net(const std::string &outgoing_ip, int port) {
@@ -293,7 +294,7 @@ int main(int argc, char const *argv[]) {
     if (app.got_subcommand(subcmd_test)) {
         for(int i=0;i<30;i++){
 	    //do_test();
-	    do_test_net("130.203.157.185", 12345);
+	    do_test_net("130.203.157.191", 12345);
 	}
     } else if (app.got_subcommand(subcmd_local)) {
         for(int i=0;i<1;i++){
