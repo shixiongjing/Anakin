@@ -4,8 +4,8 @@
 #include "framework/core/net/auto_layout_config.h"
 #ifdef ENABLE_OP_TIMER
 #include "saber/funcs/timer.h"
+#include "stdio.h"
 #endif
-
 namespace anakin {
 
 template<typename Ttype, Precision Ptype, OpRunType RunType>
@@ -273,7 +273,7 @@ void Net<Ttype, Ptype, RunType>::init(graph::Graph<Ttype, Ptype>& graph,bool aut
         }
 
 #endif
-        //* create operations with target the same as this net
+        //create operations with target the same as this net
         //auto* op_pointer = OpFactory<Ttype, Ptype>::Global()[node_ptr->get_op_name()];
         auto* op_pointer = calibrator_op<Ttype>(node_ptr->get_op_name(), node_ptr->name(), _calibrator_parser);
         if (op_pointer == nullptr) {
@@ -470,6 +470,7 @@ void Net<Ttype, Ptype, RunType>::prediction() {
             }
             LOG(INFO) << "    \\ out shape (" << out->valid_shape() << ") "<<",data type "<<out->get_dtype()<<" , "
                          << "executer name:"<< executer.name << " avg: " << tensor_mean_value_valid(*out);
+            printf("executer name:%s avg: %f", executer.name, tensor_mean_value_valid(*out));
         }
 #ifdef USE_CUDA
         if (std::is_same<Ttype, NV>::value) {
