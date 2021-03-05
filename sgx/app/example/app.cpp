@@ -60,7 +60,7 @@ size_t do_infer(size_t input_size, const void *input,
 
 
     std::chrono::duration<double> elasped_sec = end - begin;
-    inf_time += elasped_sec;
+    //inf_time += elasped_sec;
     //std::cout << elasped_sec.count()
               //<< " seconds elapsed during only inference" << std::endl;
 
@@ -79,6 +79,7 @@ void do_test() {
     {
         trd[i] = thread(thread_infer);
     }
+
     for (int i = 0; i < THREAD_NUM; i++)
     {
         trd[i].join();

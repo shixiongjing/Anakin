@@ -17,7 +17,7 @@
 #define BUFLEN (1024U * 1024U * 2U)
 #define SGX_AESGCM_MAC_SIZE 16
 #define SGX_AESGCM_IV_SIZE 12
-#define USE_ENCRYPTION 1
+//#define USE_ENCRYPTION 1
 static sgx_aes_gcm_128bit_key_t key = { 0x0, 0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x7, 0x8, 0x9, 0xa, 0xb, 0xc, 0xd, 0xe, 0xf };
 
 namespace {
@@ -275,7 +275,7 @@ extern "C" int infer(size_t input_size, const void *input,
     //printf("infer finished\n");
     auto p_float = static_cast<const float *>(h_out->data());
 
-#ifdef ENABLE_DEBUG
+#ifdef ENABLE_DEBUG_2
     auto c = h_out->valid_size();
     for (int i = 0; i < c; i++) {
         float f = p_float[i];
