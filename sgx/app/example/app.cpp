@@ -8,9 +8,10 @@
 #include <asio.hpp>
 
 //#define PRINTINFTIME 1
-
+#define ROUND 30
+#define HALT_BEFORE_INFER 1
 //#include <sgx_tprotected_fs.h>
-sgx_enclave_id_t global_eid = 1;
+sgx_enclave_id_t global_eid = 0;
 
 extern "C" int initialize_enclave(sgx_enclave_id_t *eid, const char *token_path, const char *enclave_name);
 
@@ -132,7 +133,7 @@ void do_local(const std::string &input_path, const std::string &output_path) {
     fclose(output_file);
 }
 
-void do_net(const std::string &outgoing_ip, int port) {
+void do_net(const std::string &outgoing_ip, int in_port, int out_port) {
     using asio::ip::tcp;
 
     asio::io_service io_service;
@@ -144,7 +145,7 @@ void do_net(const std::string &outgoing_ip, int port) {
 
         try {
             tcp::acceptor acceptor(io_service,
-                                   tcp::endpoint(tcp::v4(), port));
+                                   tcp::endpoint(tcp::v4(), in_port));
 
             tcp::socket socket(io_service);
             acceptor.accept(socket);
@@ -161,7 +162,7 @@ void do_net(const std::string &outgoing_ip, int port) {
                      sizeof(sgx_output), sgx_output);
 
         tcp::resolver resolver(io_service);
-        tcp::resolver::query query(outgoing_ip, std::to_string(port));
+        tcp::resolver::query query(outgoing_ip, std::to_string(out_port));
         tcp::resolver::iterator endpoint_iterator = resolver.resolve(query);
         std::cout << "end infer, start sending..." << std::endl;
         try {
@@ -188,10 +189,15 @@ void do_test_net(const std::string &outgoing_ip, int port) {
         tcp::resolver::query query(outgoing_ip, std::to_string(port));
         tcp::resolver::iterator endpoint_iterator = resolver.resolve(query);
 
+    std::cout << "infer start time: " <<
+    std::chrono::duration_cast<std::chrono::milliseconds>
+    (std::chrono::system_clock::now().time_since_epoch()).count() << std::endl;
+
         try {
-            tcp::socket socket(io_service);
-            asio::connect(socket, endpoint_iterator);
-            for(int i=0;i<1;i++){
+            
+                tcp::socket socket(io_service);
+                asio::connect(socket, endpoint_iterator);
+            for(int i=0;i<30;i++){
 	        size_t result_size = do_infer(0, nullptr, sizeof(sgx_output), sgx_output);
 		std::cout << "infer finish, start sending..." << std::endl;
                 socket.write_some(asio::buffer(sgx_output, result_size));
@@ -200,38 +206,65 @@ void do_test_net(const std::string &outgoing_ip, int port) {
             std::cerr << e.what() << std::endl;
             exit(1);
         }
+        std::cout << "infer end time: " <<
+    std::chrono::duration_cast<std::chrono::milliseconds>
+    (std::chrono::system_clock::now().time_since_epoch()).count() << std::endl;
 }
 
-void do_end_net(const std::string &outgoing_ip, int port) {
+void do_end_net(int port) {
     using asio::ip::tcp;
 
     asio::io_service io_service;
     asio::streambuf input_buf;
     asio::error_code error;
+    int counter = 0;
 
-    while (true) {
-        input_buf.consume(input_buf.size());
-
-        try {
+    input_buf.consume(input_buf.size());
+    try {
             tcp::acceptor acceptor(io_service,
                                    tcp::endpoint(tcp::v4(), port));
 
             tcp::socket socket(io_service);
             acceptor.accept(socket);
+            std::cout << "infer start time: " <<
+    std::chrono::duration_cast<std::chrono::milliseconds>
+    (std::chrono::system_clock::now().time_since_epoch()).count() << std::endl;
 
-            asio::read(socket, input_buf, error);
+            while (true) {
+        //input_buf.consume(input_buf.size());
+            //tcp::acceptor acceptor(io_service,
+              //                     tcp::endpoint(tcp::v4(), port));
+
+            //tcp::socket socket(io_service);
+            //acceptor.accept(socket);
+                input_buf.consume(input_buf.size());
+                asio::read(socket, input_buf, error);
+                
+                std::cout << "received data, start infer..." << std::endl;
+        //size_t result_size =
+        //    do_infer(input_buf.size(),
+          //           asio::buffer_cast<const char *>(input_buf.data()),
+            //         sizeof(sgx_output), sgx_output);
+                size_t result_size = do_infer(0, nullptr, sizeof(sgx_output), sgx_output);
+                std::cout << "end infer..." << ++counter << std::endl;
+                if(counter==35){
+                    break;
+                }
+            }
         } catch (std::exception &e) {
             std::cerr << e.what() << std::endl;
             exit(1);
         }
-        std::cout << "received data, start infer..." << std::endl;
-        size_t result_size =
-            do_infer(input_buf.size(),
-                     asio::buffer_cast<const char *>(input_buf.data()),
-                     sizeof(sgx_output), sgx_output);
-        std::cout << "end infer..." << std::endl;
-        
-    }
+        //std::cout << "received data, start infer..." << std::endl;
+        //size_t result_size =
+        //    do_infer(input_buf.size(),
+          //           asio::buffer_cast<const char *>(input_buf.data()),
+            //         sizeof(sgx_output), sgx_output);
+        //size_t result_size = do_infer(0, nullptr, sizeof(sgx_output), sgx_output);
+        //std::cout << "end infer..." << std::endl;
+        std::cout << "infer end time: " <<
+        std::chrono::duration_cast<std::chrono::milliseconds>
+        (std::chrono::system_clock::now().time_since_epoch()).count() << std::endl;
 }
 
 int main(int argc, char const *argv[]) {
@@ -250,10 +283,20 @@ int main(int argc, char const *argv[]) {
     subcmd_local->add_option("output_file", arg_ofile)->required();
 
     std::string arg_oip;
-    int arg_port = 8091;
+    int arg_in_port = 60000;
+    int arg_out_port = 60000;
     CLI::App *subcmd_net = app.add_subcommand("net");
     subcmd_net->add_option("outgoing_ip", arg_oip)->required();
-    subcmd_net->add_option("port", arg_port);
+    subcmd_net->add_option("input_port", arg_in_port);
+    subcmd_net->add_option("output_port", arg_out_port);
+
+
+    CLI::App *subcmd_test_net = app.add_subcommand("test_net");
+    subcmd_test_net->add_option("outgoing_ip", arg_oip)->required();
+    subcmd_test_net->add_option("output_port", arg_out_port);
+
+    CLI::App *subcmd_end_net = app.add_subcommand("end_net");
+    subcmd_end_net->add_option("input_port", arg_in_port);
 
     CLI11_PARSE(app, argc, argv);
 
@@ -276,22 +319,31 @@ int main(int argc, char const *argv[]) {
     }
 
     std::cout << "model ready" << std::endl;
+
+    if(HALT_BEFORE_INFER){
+        std::cout << '\n' << "Press a key to continue...";
+        std::cin.get();
+    }
     auto begin = std::chrono::steady_clock::now();
 /*    std::cout << "infer start time: " <<
     std::chrono::duration_cast<std::chrono::milliseconds>
     (std::chrono::system_clock::now().time_since_epoch()).count() << std::endl;
 */
     if (app.got_subcommand(subcmd_test)) {
-        for(int i=0;i<30;i++){
+        for(int i=0;i<ROUND;i++){
 	    do_test();
-	    //do_test_net("130.203.153.40", 12345);
+	    //do_test_net("130.203.157.185", 12345);
 	}
     } else if (app.got_subcommand(subcmd_local)) {
-        for(int i=0;i<1;i++){
+        for(int i=0;i<ROUND;i++){
 	do_local(arg_ifile, arg_ofile);
 	}
     } else if (app.got_subcommand(subcmd_net)) {
-        do_end_net(arg_oip, arg_port);
+        do_net(arg_oip, arg_in_port, arg_out_port);
+    } else if (app.got_subcommand(subcmd_test_net)) {
+        do_test_net(arg_oip, arg_out_port);
+    } else if (app.got_subcommand(subcmd_end_net)) {
+        do_end_net(arg_in_port);
     } else {
         abort();
     }
