@@ -7,9 +7,7 @@
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 //
-#define USE_TEST
-#define ROUND 30
-#define HALT_BEFORE_INFER 1
+
 
 
 #ifndef data_message_HPP
@@ -26,13 +24,9 @@
 #include <set>
 #include <utility>
 #include "asio.hpp"
+#include "common.hpp"
 
 using asio::ip::tcp;
-#define SGX_INPUT_MAX (1024U * 1024U * 2U)
-#define SGX_OUTPUT_MAX (1024U * 1024U * 2U)
-
-size_t do_infer(size_t input_size, const void *input,
-                size_t output_max_size, void *output);
 
 class data_message
 {
