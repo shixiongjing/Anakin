@@ -37,6 +37,8 @@ set(ECALL_SRC ${ANAKIN_SGX}/enclave/ecall.cpp)
 set(APP_SRC ${ANAKIN_SGX}/app/app.cpp)
 set(INIT_SRC ${ANAKIN_SGX}/app/init.c)
 set(OCALL_SRC ${ANAKIN_SGX}/app/ocall.c)
+set(MSG_SRC ${ANAKIN_SGX}/app/data_message.cpp)
+set(INFCALL_SRC ${ANAKIN_SGX}/app/inf_call.cpp)
 
 add_custom_command(
   OUTPUT ${TRUSTED_DIR}/enclave_t.c ${TRUSTED_DIR}/enclave_t.h
@@ -152,7 +154,7 @@ add_custom_target(anakin_enclave_signed ALL
   DEPENDS anakin_enclave.signed
 )
 
-add_executable(anakin_app ${APP_SRC} ${OCALL_SRC} ${INIT_SRC})
+add_executable(anakin_app ${APP_SRC} ${OCALL_SRC} ${INIT_SRC} ${MSG_SRC} ${INFCALL_SRC})
 target_compile_options(anakin_app PUBLIC -UNDEBUG)
 target_link_libraries(anakin_app
   anakin_untrusted

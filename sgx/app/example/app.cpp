@@ -6,7 +6,7 @@
 #include <ctime>
 #include <CLI11.hpp>
 #include <asio.hpp>
-#include "inf_call.hpp"
+//#include "inf_call.hpp"
 //#define PRINTINFTIME 1
 
 //#include <sgx_tprotected_fs.h>
