@@ -53,7 +53,7 @@ int do_net(int in_port, char ip[], char out_port[])
   try{
     asio::io_context io_context;
 
-    tcp::endpoint endpoint_in(tcp::v4(), std::atoi(in_port));
+    tcp::endpoint endpoint_in(tcp::v4(), in_port);
     tcp::resolver resolver(io_context);
     auto endpoint_out = resolver.resolve(ip, out_port);
     middle_server server(io_context, endpoint_in, endpoint_out, 1);
