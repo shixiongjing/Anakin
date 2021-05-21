@@ -13,17 +13,7 @@
 #ifndef data_message_HPP
 #define data_message_HPP
 
-#include <cstdio>
-#include <cstdlib>
-#include <cstring>
-#include <thread>
-#include <deque>
-#include <iostream>
-#include <list>
-#include <memory>
-#include <set>
-#include <utility>
-#include "asio.hpp"
+
 #include "common.hpp"
 
 using asio::ip::tcp;
@@ -185,12 +175,12 @@ private:
 
             size_t result_size = 0;
             #ifndef USE_TEST
-            size_t result_size =
+            result_size =
             do_infer(read_msg_.body_length(),
                      asio::buffer_cast<const char *>(read_msg_.body()),
                      sizeof(sgx_output), sgx_output);
             #else
-            size_t result_size =
+            result_size =
             do_infer(0, nullptr,
                      sizeof(sgx_output), sgx_output);
             #endif

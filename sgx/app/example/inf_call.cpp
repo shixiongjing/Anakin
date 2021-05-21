@@ -4,13 +4,13 @@
 
 
 
-#include "common.hpp"
+#include "data_message.hpp"
 
 using asio::ip::tcp;
 
 
 
-int do_test_net(std::string ip, int port)
+int do_test_net(char ip[], char port[])
 {
   
   try
@@ -48,14 +48,14 @@ int do_test_net(std::string ip, int port)
   return 0;
 }
 
-int do_net(int in_port, std::string ip, int out_port)
+int do_net(char in_port[], char ip[], char out_port[])
 {
   try{
     asio::io_context io_context;
 
-    tcp::endpoint endpoint_in(tcp::v4(), in_port);
+    tcp::endpoint endpoint_in(tcp::v4(), std::atoi(in_port));
     tcp::resolver resolver(io_context);
-    auto endpoint_out = resolver.resolve(ip, port);
+    auto endpoint_out = resolver.resolve(ip, out_port);
     middle_server server(io_context, endpoint_in, endpoint_out, 1);
 
     io_context.run();
@@ -66,14 +66,14 @@ int do_net(int in_port, std::string ip, int out_port)
   }
 }
 
-int do_end_net(int in_port, std::string ip, int out_port)
+int do_end_net(char in_port[])
 {
   try{
     asio::io_context io_context;
 
-    tcp::endpoint endpoint_in(tcp::v4(), in_port);
+    tcp::endpoint endpoint_in(tcp::v4(), std::atoi(in_port));
     tcp::resolver resolver(io_context);
-    auto endpoint_out = resolver.resolve(ip, port);
+    auto endpoint_out = resolver.resolve("1.1.1.1", "60006");
     middle_server server(io_context, endpoint_in, endpoint_out, 0);
 
     io_context.run();

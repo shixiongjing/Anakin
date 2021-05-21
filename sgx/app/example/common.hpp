@@ -2,6 +2,23 @@
 // message_client.hpp
 // ~~~~~~~~~~~~~~~
 
+#include <iostream>
+#include <chrono>
+#include "enclave_u.h"
+#include "sgx_urts.h"
+
+#include <ctime>
+#include <asio.hpp>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
+#include <thread>
+#include <deque>
+#include <list>
+#include <memory>
+#include <set>
+#include <utility>
+//#include "asio.hpp"
 
 
 #define USE_TEST
@@ -11,12 +28,12 @@
 #define SGX_INPUT_MAX (1024U * 1024U * 2U)
 #define SGX_OUTPUT_MAX (1024U * 1024U * 2U)
 
-uint8_t sgx_input[SGX_INPUT_MAX];
-uint8_t sgx_output[SGX_OUTPUT_MAX];
+extern uint8_t sgx_input[SGX_INPUT_MAX];
+extern uint8_t sgx_output[SGX_OUTPUT_MAX];
 
 size_t do_infer(size_t input_size, const void *input,
                 size_t output_max_size, void *output);
 
-int do_test_net(std::string ip, int port);
-int do_net(int in_port, std::string ip, int out_port);
-int do_end_net(int in_port, std::string ip, int out_port);
+int do_test_net(char ip[], char port[]);
+int do_net(char in_port[], char ip[], char out_port[]);
+int do_end_net(char in_port[]);

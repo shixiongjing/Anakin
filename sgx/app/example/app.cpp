@@ -1,17 +1,16 @@
-#include <iostream>
-#include <chrono>
-#include "enclave_u.h"
-#include "sgx_urts.h"
 
-#include <ctime>
+
 #include <CLI11.hpp>
-#include <asio.hpp>
-#include "common.hpp"
+//#include <asio.hpp>
+#include "data_message.hpp"
 //#include "inf_call.hpp"
 //#define PRINTINFTIME 1
 
 //#include <sgx_tprotected_fs.h>
 sgx_enclave_id_t global_eid = 0;
+
+uint8_t sgx_input[SGX_INPUT_MAX];
+uint8_t sgx_output[SGX_OUTPUT_MAX];
 
 extern "C" int initialize_enclave(sgx_enclave_id_t *eid, const char *token_path, const char *enclave_name);
 
@@ -279,9 +278,9 @@ int main(int argc, char const *argv[]) {
     subcmd_local->add_option("input_file", arg_ifile)->required();
     subcmd_local->add_option("output_file", arg_ofile)->required();
 
-    std::string arg_oip;
-    int arg_in_port = 60000;
-    int arg_out_port = 60000;
+    char* arg_oip;
+    char* arg_in_port;
+    char* arg_out_port;
     CLI::App *subcmd_net = app.add_subcommand("net");
     subcmd_net->add_option("outgoing_ip", arg_oip)->required();
     subcmd_net->add_option("input_port", arg_in_port);
@@ -336,7 +335,7 @@ int main(int argc, char const *argv[]) {
 	do_local(arg_ifile, arg_ofile);
 	}
     } else if (app.got_subcommand(subcmd_net)) {
-        do_net(arg_oip, arg_in_port, arg_out_port);
+        do_net(arg_in_port, arg_oip, arg_out_port);
     } else if (app.got_subcommand(subcmd_test_net)) {
         do_test_net(arg_oip, arg_out_port);
     } else if (app.got_subcommand(subcmd_end_net)) {
