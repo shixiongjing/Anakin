@@ -34,6 +34,6 @@ extern uint8_t sgx_output[SGX_OUTPUT_MAX];
 size_t do_infer(size_t input_size, const void *input,
                 size_t output_max_size, void *output);
 
-int do_test_net(char ip[], char port[]);
-int do_net(char in_port[], char ip[], char out_port[]);
-int do_end_net(char in_port[]);
+int do_test_net(char ip[], char out_port[]);
+int do_net(int in_port, char ip[], char out_port[]);
+int do_end_net(int in_port);

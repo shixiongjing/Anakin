@@ -10,14 +10,14 @@ using asio::ip::tcp;
 
 
 
-int do_test_net(char ip[], char port[])
+int do_test_net(char ip[], char out_port[])
 {
   
   try
   {
     asio::io_context io_context;
     tcp::resolver resolver(io_context);
-    auto endpoints = resolver.resolve(ip, port);
+    auto endpoints = resolver.resolve(ip, out_port);
     message_client c(io_context, endpoints);
     std::thread t([&io_context](){ io_context.run(); });
   
@@ -48,7 +48,7 @@ int do_test_net(char ip[], char port[])
   return 0;
 }
 
-int do_net(char in_port[], char ip[], char out_port[])
+int do_net(int in_port, char ip[], char out_port[])
 {
   try{
     asio::io_context io_context;
@@ -66,12 +66,12 @@ int do_net(char in_port[], char ip[], char out_port[])
   }
 }
 
-int do_end_net(char in_port[])
+int do_end_net(int in_port)
 {
   try{
     asio::io_context io_context;
 
-    tcp::endpoint endpoint_in(tcp::v4(), std::atoi(in_port));
+    tcp::endpoint endpoint_in(tcp::v4(), in_port);
     tcp::resolver resolver(io_context);
     auto endpoint_out = resolver.resolve("1.1.1.1", "60006");
     middle_server server(io_context, endpoint_in, endpoint_out, 0);
