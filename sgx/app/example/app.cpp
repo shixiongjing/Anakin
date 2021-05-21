@@ -278,9 +278,10 @@ int main(int argc, char const *argv[]) {
     subcmd_local->add_option("input_file", arg_ifile)->required();
     subcmd_local->add_option("output_file", arg_ofile)->required();
 
-    char* arg_oip;
-    char* arg_in_port;
-    char* arg_out_port;
+    std::cout << "here1" << std::endl;
+    std::string arg_oip;
+    std::string arg_in_port;
+    std::string arg_out_port;
     CLI::App *subcmd_net = app.add_subcommand("net");
     subcmd_net->add_option("outgoing_ip", arg_oip)->required();
     subcmd_net->add_option("input_port", arg_in_port);
@@ -295,7 +296,7 @@ int main(int argc, char const *argv[]) {
     subcmd_end_net->add_option("input_port", arg_in_port);
 
     CLI11_PARSE(app, argc, argv);
-
+    std::cout << "input parsed" << std::endl;
     if (initialize_enclave(&global_eid, "anakin_enclave.token", "anakin_enclave.signed") < 0) {
         std::cerr << "error: fail to initialize enclave." << std::endl;
         return 1;
@@ -335,11 +336,11 @@ int main(int argc, char const *argv[]) {
 	do_local(arg_ifile, arg_ofile);
 	}
     } else if (app.got_subcommand(subcmd_net)) {
-        do_net(arg_in_port, arg_oip, arg_out_port);
+        do_net(const_cast<char*>(arg_in_port.c_str()), const_cast<char*>(arg_oip.c_str()), const_cast<char*>(arg_out_port.c_str()));
     } else if (app.got_subcommand(subcmd_test_net)) {
-        do_test_net(arg_oip, arg_out_port);
+        do_test_net(const_cast<char*>(arg_oip.c_str()), const_cast<char*>(arg_out_port.c_str()));
     } else if (app.got_subcommand(subcmd_end_net)) {
-        do_end_net(arg_in_port);
+        do_end_net(const_cast<char*>(arg_in_port.c_str()));
     } else {
         abort();
     }
