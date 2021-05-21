@@ -7,7 +7,7 @@
 #include "data_message.hpp"
 
 using asio::ip::tcp;
-int round_counter = 0;
+uint32_t round_counter = 0;
 
 
 int do_test_net(char ip[], char out_port[])
