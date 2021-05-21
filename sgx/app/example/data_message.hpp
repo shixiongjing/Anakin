@@ -180,6 +180,14 @@ private:
             do_infer(0, nullptr,
                      sizeof(sgx_output), sgx_output);
             #endif
+
+            round_counter++;
+            #ifdef PRINT_ROUND_INFO
+            std::cout << "round: " << round_counter <<
+            "time: " << std::chrono::duration_cast<std::chrono::milliseconds>
+            (std::chrono::system_clock::now().time_since_epoch()).count() << std::endl;
+            #endif
+            
             if(req_out_){
               data_message msg;
               msg.body_length(result_size);

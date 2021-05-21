@@ -7,7 +7,7 @@
 #include "data_message.hpp"
 
 using asio::ip::tcp;
-
+round_counter = 0;
 
 
 int do_test_net(char ip[], char out_port[])
@@ -23,9 +23,15 @@ int do_test_net(char ip[], char out_port[])
   
     for(int i=0;i<ROUND;i++)
     {
-      size_t result_size =
-              do_infer(0, nullptr,
-                       sizeof(sgx_output), sgx_output);
+      size_t result_size = 0;
+      result_size = do_infer(0, nullptr, sizeof(sgx_output), sgx_output);
+
+      round_counter++;
+      #ifdef PRINT_ROUND_INFO
+      std::cout << "round: " << round_counter <<
+      "time: " << std::chrono::duration_cast<std::chrono::milliseconds>
+      (std::chrono::system_clock::now().time_since_epoch()).count() << std::endl;
+      #endif
 
       data_message msg;
       msg.body_length(result_size);

@@ -41,7 +41,6 @@ int main(int argc, char const *argv[]) {
     subcmd_local->add_option("input_file", arg_ifile)->required();
     subcmd_local->add_option("output_file", arg_ofile)->required();
 
-    std::cout << "here1" << std::endl;
     std::string arg_oip;
     int arg_in_port;
     std::string arg_out_port;
