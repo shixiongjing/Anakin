@@ -8,7 +8,7 @@
 
 using asio::ip::tcp;
 uint32_t round_counter = 0;
-
+uint64_t comm_gap_time = 0;
 
 int do_test_net(char ip[], char out_port[])
 {

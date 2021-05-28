@@ -32,7 +32,7 @@
 extern uint8_t sgx_input[SGX_INPUT_MAX];
 extern uint8_t sgx_output[SGX_OUTPUT_MAX];
 extern uint32_t round_counter;
-extern uint64_t gap_time;
+extern uint64_t comm_gap_time;
 
 size_t do_infer(size_t input_size, const void *input,
                 size_t output_max_size, void *output);

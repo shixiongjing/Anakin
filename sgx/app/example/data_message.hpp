@@ -14,7 +14,7 @@
 
 using asio::ip::tcp;
 
-uint64_t gap_time = 0;
+//uint64_t comm_gap_time = 0;
 
 struct message_header
     {
@@ -125,7 +125,7 @@ private:
           if (!ec)
           {
             //std::cout << read_msg_.data_buf.data() << std::endl;
-            gap_time += uint64_t(std::chrono::system_clock::now().time_since_epoch().count()) - read_msg_.header.timestamp;
+            comm_gap_time += uint64_t(std::chrono::system_clock::now().time_since_epoch().count()) - read_msg_.header.timestamp;
             size_t result_size = 0;
             #ifndef USE_TEST
             result_size =
