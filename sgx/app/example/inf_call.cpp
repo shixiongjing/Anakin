@@ -34,9 +34,8 @@ int do_test_net(char ip[], char out_port[])
       #endif
 
       data_message msg;
-      msg.body_length(result_size);
-      std::memcpy(msg.body(), sgx_output, msg.body_length());
-      msg.encode_header();
+      msg.data_buf.assign(sgx_output, sgx_output + result_size);
+      msg.header.size = msg.data_buf.size();
       c.write(msg);
     }
     

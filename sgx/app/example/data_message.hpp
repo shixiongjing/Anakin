@@ -14,77 +14,27 @@
 
 using asio::ip::tcp;
 
-class data_message
-{
-public:
-  enum { header_length = 4 };
-  enum { max_body_length = SGX_INPUT_MAX };
+uint64_t gap_time = 0;
 
-  data_message()
-    : body_length_(0)
-  {
-  }
-
-  const char* data() const
-  {
-    return data_;
-  }
-
-  char* data()
-  {
-    return data_;
-  }
-
-  std::size_t length() const
-  {
-    return header_length + body_length_;
-  }
-
-  const char* body() const
-  {
-    return data_ + header_length;
-  }
-
-  char* body()
-  {
-    return data_ + header_length;
-  }
-
-  std::size_t body_length() const
-  {
-    return body_length_;
-  }
-
-  void body_length(std::size_t new_length)
-  {
-    body_length_ = new_length;
-    if (body_length_ > max_body_length)
-      body_length_ = max_body_length;
-  }
-
-  bool decode_header()
-  {
-    char header[header_length + 1] = "";
-    std::strncat(header, data_, header_length);
-    body_length_ = std::atoi(header);
-    if (body_length_ > max_body_length)
+struct message_header
     {
-      body_length_ = 0;
-      return false;
-    }
-    return true;
-  }
+      uint32_t size = 0;
+      uint32_t id1 = 1;
+      uint32_t id2 = 1;
+      uint64_t timestamp = uint64_t(std::chrono::system_clock::now().time_since_epoch().count());
+    };
 
-  void encode_header()
-  {
-    char header[header_length + 1] = "";
-    std::sprintf(header, "%4d", static_cast<int>(body_length_));
-    std::memcpy(data_, header, header_length);
-  }
+struct data_message
+{
 
-private:
-  char data_[header_length + max_body_length];
-  std::size_t body_length_;
+  std::vector<char> data_buf;
+  message_header header;
+  size_t size() const
+      {
+        return data_buf.size();
+      }
+
+  
 };
 
 #endif // data_message_HPP
@@ -124,16 +74,18 @@ public:
 
   void start()
   {
+    std::cout << "start channel" << std::endl;
     do_read_header();
   }
 
   void deliver(const data_message& msg)
   {
+    std::cout << "writing here in server" << req_out_ << std::endl;
     bool write_in_progress = !write_msgs_.empty();
     write_msgs_.push_back(msg);
     if (!write_in_progress)
     {
-      do_write();
+      do_write_header();
     }
   }
 
@@ -142,16 +94,23 @@ private:
   {
     auto self(shared_from_this());
     asio::async_read(socket_,
-        asio::buffer(read_msg_.data(), data_message::header_length),
-        [this, self](std::error_code ec, std::size_t /*length*/)
+        asio::buffer(&read_msg_.header, sizeof(message_header)),
+        [this, self](std::error_code ec, std::size_t n/*length*/)
         {
-          if (!ec && read_msg_.decode_header())
+          if (!ec)
           {
-            do_read_body();
+            if(read_msg_.header.size > 0){
+              read_msg_.data_buf.resize(read_msg_.header.size);
+              do_read_body();
+            }
+            else{
+              //add to read message queue
+            }
           }
           else
           {
-            std::cout << ec.message() << std::endl;
+            std::cout << "Received:" << n << std::endl;
+            std::cout << "[Error] in server do read header " << ec.message() << std::endl;
           }
         });
   }
@@ -160,20 +119,18 @@ private:
   {
     auto self(shared_from_this());
     asio::async_read(socket_,
-        asio::buffer(read_msg_.body(), read_msg_.body_length()),
+        asio::buffer(read_msg_.data_buf),
         [this, self](std::error_code ec, std::size_t /*length*/)
         {
           if (!ec)
           {
-            //room_.deliver(read_msg_);
-            //std::cout.write(read_msg_.body(), read_msg_.body_length());
-            std::cout << "received " << read_msg_.body_length() << std::endl;
-
+            //std::cout << read_msg_.data_buf.data() << std::endl;
+            gap_time += uint64_t(std::chrono::system_clock::now().time_since_epoch().count()) - read_msg_.header.timestamp;
             size_t result_size = 0;
             #ifndef USE_TEST
             result_size =
-            do_infer(read_msg_.body_length(),
-                     asio::buffer_cast<const char *>(read_msg_.body()),
+            do_infer(read_msg_.size(),
+                     asio::buffer_cast<const char *>(read_msg_.data_buf.data()),
                      sizeof(sgx_output), sgx_output);
             #else
             result_size =
@@ -187,29 +144,56 @@ private:
             "time: " << std::chrono::duration_cast<std::chrono::milliseconds>
             (std::chrono::system_clock::now().time_since_epoch()).count() << std::endl;
             #endif
-            
             if(req_out_){
               data_message msg;
-              msg.body_length(result_size);
-              std::memcpy(msg.body(), sgx_output, msg.body_length());
-              msg.encode_header();
+              msg.data_buf.assign(sgx_output, sgx_output + result_size);
+              msg.header.size = msg.data_buf.size();
               deliver(msg);
             }
             do_read_header();
           }
           else
           {
-            std::cout << ec.message() << std::endl;
+            std::cout << "error in server do read body" << ec.message() << std::endl;
           }
         });
   }
 
-  void do_write()
+  void do_write_header()
   {
     auto self(shared_from_this());
     asio::async_write(out_socket_,
-        asio::buffer(write_msgs_.front().data(),
-          write_msgs_.front().length()),
+        asio::buffer(&write_msgs_.front().header,
+          sizeof(message_header)),
+        [this, self](std::error_code ec, std::size_t /*length*/)
+        {
+          if (!ec)
+          {
+            if (write_msgs_.front().data_buf.size() > 0)
+            {
+              do_write_body();
+            } else{
+              write_msgs_.pop_front();
+              if (!write_msgs_.empty())
+              {
+                do_write_header();
+              }
+            }
+          }
+          else
+          {
+            std::cout << "error in server do write header" << ec.message() << std::endl;
+            out_socket_.close();
+            //room_.leave(shared_from_this());
+          }
+        });
+  }
+
+  void do_write_body()
+  {
+    auto self(shared_from_this());
+    asio::async_write(out_socket_,
+        asio::buffer(write_msgs_.front().data_buf),
         [this, self](std::error_code ec, std::size_t /*length*/)
         {
           if (!ec)
@@ -217,12 +201,13 @@ private:
             write_msgs_.pop_front();
             if (!write_msgs_.empty())
             {
-              do_write();
+              do_write_header();
             }
           }
           else
           {
-            std::cout << ec.message() << std::endl;
+            std::cout << "error in server do write body" << ec.message() << std::endl;
+            out_socket_.close();
             //room_.leave(shared_from_this());
           }
         });
@@ -263,7 +248,13 @@ private:
         {
           if (!ec)
           {
+            std::cout << "accepted connection" << std::endl;
             std::make_shared<comm_session>(std::move(socket), std::move(out_socket), req_out)->start();
+          }
+          else
+          {
+            std::cout << "error in server accept" << ec.message() << std::endl;
+            //room_.leave(shared_from_this());
           }
 
           do_accept();
@@ -278,6 +269,11 @@ private:
           if (!ec)
           {
             //do_read_header();
+          }
+          else
+          {
+            std::cout << "error in server do connect" << ec.message() << std::endl;
+            //room_.leave(shared_from_this());
           }
         });
   }
@@ -313,7 +309,7 @@ public:
           write_msgs_.push_back(msg);
           if (!write_in_progress)
           {
-            do_write();
+            do_write_header();
           }
         });
   }
@@ -331,24 +327,38 @@ private:
         {
           if (!ec)
           {
-            do_read_header();
+            //do_read_header();
+          }
+          else
+          {
+            std::cout << "error in client do connect" << ec.message() << std::endl;
           }
         });
   }
 
+  
+
   void do_read_header()
   {
     asio::async_read(socket_,
-        asio::buffer(read_msg_.data(), data_message::header_length),
-        [this](std::error_code ec, std::size_t /*length*/)
+        asio::buffer(&read_msg_.header, sizeof(message_header)),
+        [this](std::error_code ec, std::size_t n/*length*/)
         {
-          if (!ec && read_msg_.decode_header())
+          if (!ec)
           {
-            do_read_body();
+            std::cout << "Received:" << n << std::endl;
+            if(read_msg_.header.size > 0){
+              read_msg_.data_buf.resize(read_msg_.header.size);
+              do_read_body();
+            }
+            else{
+              //add to read message queue
+            }
           }
           else
           {
-            socket_.close();
+            std::cout << "[Error] in client do read header " << ec.message() << std::endl;
+            //socket_.close();
           }
         });
   }
@@ -356,27 +366,56 @@ private:
   void do_read_body()
   {
     asio::async_read(socket_,
-        asio::buffer(read_msg_.body(), read_msg_.body_length()),
+        asio::buffer(read_msg_.data_buf),
         [this](std::error_code ec, std::size_t /*length*/)
         {
           if (!ec)
           {
-            std::cout.write(read_msg_.body(), read_msg_.body_length());
+            //room_.deliver(read_msg_);
+            std::cout.write(read_msg_.data_buf.data(), read_msg_.size());
             std::cout << "\n";
             do_read_header();
           }
           else
           {
+            std::cout << "error in client do read body " << ec.message() << std::endl;
             socket_.close();
           }
         });
   }
 
-  void do_write()
+  void do_write_header()
   {
     asio::async_write(socket_,
-        asio::buffer(write_msgs_.front().data(),
-          write_msgs_.front().length()),
+        asio::buffer(&write_msgs_.front().header, sizeof(message_header)),
+        [this](std::error_code ec, std::size_t /*length*/)
+        {
+          if (!ec)
+          {
+            if (write_msgs_.front().data_buf.size() > 0)
+            {
+              do_write_body();
+            } else{
+              write_msgs_.pop_front();
+              if (!write_msgs_.empty())
+              {
+                do_write_header();
+              }
+            }
+          }
+          else
+          {
+            std::cout << "error in client do write header" << ec.message() << std::endl;
+            socket_.close();
+            //room_.leave(shared_from_this());
+          }
+        });
+  }
+
+  void do_write_body()
+  {
+    asio::async_write(socket_,
+        asio::buffer(write_msgs_.front().data_buf),
         [this](std::error_code ec, std::size_t /*length*/)
         {
           if (!ec)
@@ -384,12 +423,14 @@ private:
             write_msgs_.pop_front();
             if (!write_msgs_.empty())
             {
-              do_write();
+              do_write_header();
             }
           }
           else
           {
+            std::cout << "error in client do write body" << ec.message() << std::endl;
             socket_.close();
+            //room_.leave(shared_from_this());
           }
         });
   }
