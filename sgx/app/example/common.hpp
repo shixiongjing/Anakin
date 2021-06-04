@@ -1,7 +1,7 @@
 //
 // message_client.hpp
 // ~~~~~~~~~~~~~~~
-
+#define ASIO_STANDALONE
 #include <iostream>
 #include <chrono>
 #include "enclave_u.h"

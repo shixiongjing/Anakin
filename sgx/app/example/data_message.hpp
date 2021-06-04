@@ -207,6 +207,9 @@ private:
             std::cout << "round: " << round_counter <<
             "time: " << std::chrono::duration_cast<std::chrono::milliseconds>
             (std::chrono::system_clock::now().time_since_epoch()).count() << std::endl;
+            if(round_counter == 30){
+                std::cout << "gap time: " << comm_gap_time << std::endl;
+            }
             #endif
             //std::this_thread::sleep_for (std::chrono::seconds(1));
 
