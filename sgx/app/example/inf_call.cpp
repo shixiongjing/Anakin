@@ -9,6 +9,7 @@
 using asio::ip::tcp;
 uint32_t round_counter = 0;
 uint64_t comm_gap_time = 0;
+uint32_t overheat = 0;
 
 int do_test_net(char ip[], char out_port[])
 {
@@ -21,6 +22,7 @@ int do_test_net(char ip[], char out_port[])
     message_client c(io_context, endpoints);
     std::thread t([&io_context](){ io_context.run(); });
   
+    data_message* msg = new data_message[ROUND];
     for(int i=0;i<ROUND;i++)
     {
       size_t result_size = 0;
@@ -33,10 +35,14 @@ int do_test_net(char ip[], char out_port[])
       (std::chrono::system_clock::now().time_since_epoch()).count() << std::endl;
       #endif
 
-      data_message msg;
-      msg.data_buf.assign(sgx_output, sgx_output + result_size);
-      msg.header.size = msg.data_buf.size();
-      c.write(msg);
+      
+      msg[i].data_buf.assign(sgx_output, sgx_output + result_size);
+      msg[i].header.size = msg[i].data_buf.size();
+      c.write(msg[i]);
+      while(overheat){
+        std::cout << "waiting........... " << std::endl;
+        std::this_thread::sleep_for (std::chrono::nanoseconds(1000000000));
+      }
     }
     
     

@@ -19,6 +19,7 @@ using asio::ip::tcp;
 struct message_header
     {
       uint32_t size = 0;
+      uint32_t message_type = 0;// 0 for sending package, 1 for successful replies, 2 for waiting, 3 for error
       uint32_t id1 = 1;
       uint32_t id2 = 1;
       uint64_t timestamp = uint64_t(std::chrono::system_clock::now().time_since_epoch().count());
@@ -68,7 +69,9 @@ public:
   comm_session(tcp::socket socket, tcp::socket out_socket, uint32_t req)
     : socket_(std::move(socket)),
       out_socket_(std::move(out_socket)),
-      req_out_(req)
+      req_out_(req),
+      queued_message_num(0),
+      my_timer(socket.get_executor())
   {
   }
 
@@ -80,7 +83,11 @@ public:
 
   void deliver(const data_message& msg)
   {
-    std::cout << "writing here in server" << req_out_ << std::endl;
+    if(msg.header.message_type==0){
+      queued_message_num++;
+      if(queued_message_num > 5){ overheat = 1; }
+      //std::cout << "now overheat " << overheat << " qn: " << queued_message_num << std::endl;
+    }
     bool write_in_progress = !write_msgs_.empty();
     write_msgs_.push_back(msg);
     if (!write_in_progress)
@@ -90,6 +97,29 @@ public:
   }
 
 private:
+  //ise lambda function might be the only way
+  void do_wait_write(){
+    auto self(shared_from_this());
+    std::cout << "waiting with overheat "<< overheat << " queued message " << queued_message_num << std::endl;
+    my_timer.expires_from_now(std::chrono::seconds(1));
+    my_timer.async_wait(
+      [this, self](const asio::error_code& ec){
+        if(!ec){
+          if(!overheat){
+            do_write_header();
+          }
+          else{
+            do_wait_write();
+          }
+        }
+        else{
+          std::cout << "[Error] in server do wait write: " << ec.message() << std::endl;
+        }
+      }
+    );
+    
+  }
+
   void do_read_header()
   {
     auto self(shared_from_this());
@@ -104,13 +134,45 @@ private:
               do_read_body();
             }
             else{
-              //add to read message queue
+              do_read_header();
             }
+            // else if(read_msg_.header.message_type == 1){
+            //   queued_message_num--;
+            //   if(queued_message_num < 3){ overheat = 0; }
+            //   std::cout << "$$$ got reply now overheat " << overheat << " qn: " << queued_message_num << std::endl;
+            // }
           }
           else
           {
             std::cout << "Received:" << n << std::endl;
             std::cout << "[Error] in server do read header " << ec.message() << std::endl;
+          }
+        });
+  }
+
+  void do_read_reply()
+  {
+    auto self(shared_from_this());
+    asio::async_read(out_socket_,
+        asio::buffer(&read_msg_.header, sizeof(message_header)),
+        [this, self](std::error_code ec, std::size_t n/*length*/)
+        {
+          if (!ec)
+          {
+            // if(read_msg_.header.size > 0){
+            //   read_msg_.data_buf.resize(read_msg_.header.size);
+            //   do_read_body();
+            // }
+            if(read_msg_.header.message_type == 1){
+              queued_message_num--;
+              if(queued_message_num < 3){ overheat = 0; }
+              std::cout << "$$$ got reply now overheat " << overheat << " qn: " << queued_message_num << std::endl;
+            }
+          }
+          else
+          {
+            std::cout << "Received:" << n << std::endl;
+            std::cout << "[Error] in server do read reply header " << ec.message() << std::endl;
           }
         });
   }
@@ -124,9 +186,11 @@ private:
         {
           if (!ec)
           {
-            //std::cout << read_msg_.data_buf.data() << std::endl;
+            //std::cout << "@@@ received data " << read_msg_.data_buf.size() << std::endl;
+
             comm_gap_time += uint64_t(std::chrono::system_clock::now().time_since_epoch().count()) - read_msg_.header.timestamp;
             size_t result_size = 0;
+            
             #ifndef USE_TEST
             result_size =
             do_infer(read_msg_.size(),
@@ -144,12 +208,28 @@ private:
             "time: " << std::chrono::duration_cast<std::chrono::milliseconds>
             (std::chrono::system_clock::now().time_since_epoch()).count() << std::endl;
             #endif
+            //std::this_thread::sleep_for (std::chrono::seconds(1));
+
+            data_message * reply = new data_message();
+            reply->header.message_type = 1;
+            reply->header.size = 0;
+            deliver(*reply);
+
             if(req_out_){
-              data_message msg;
-              msg.data_buf.assign(sgx_output, sgx_output + result_size);
-              msg.header.size = msg.data_buf.size();
-              deliver(msg);
+              #ifdef OUTSIDE_SGX_TEST
+              result_size = SGX_OUTPUT_MAX;
+              std::fill_n (sgx_output, result_size, 50);
+              sgx_output[0]=(uint8_t)'A';
+              #endif
+              data_message * datapack = new data_message();
+              datapack->data_buf.assign(sgx_output, sgx_output + result_size);
+              datapack->header.size = datapack->data_buf.size();
+              datapack->header.message_type = 0;
+            
+              deliver(*datapack);
             }
+            
+
             do_read_header();
           }
           else
@@ -162,31 +242,62 @@ private:
   void do_write_header()
   {
     auto self(shared_from_this());
-    asio::async_write(out_socket_,
-        asio::buffer(&write_msgs_.front().header,
-          sizeof(message_header)),
-        [this, self](std::error_code ec, std::size_t /*length*/)
-        {
-          if (!ec)
+    if(write_msgs_.front().header.message_type == 0){
+      asio::async_write(out_socket_,
+          asio::buffer(&write_msgs_.front().header,
+            sizeof(message_header)),
+          [this, self](std::error_code ec, std::size_t /*length*/)
           {
-            if (write_msgs_.front().data_buf.size() > 0)
+            if (!ec)
             {
-              do_write_body();
-            } else{
+              if (write_msgs_.front().data_buf.size() > 0)
+              {
+                do_write_body();
+              } else{
+                write_msgs_.pop_front();
+                if (!write_msgs_.empty())
+                {
+                  if(overheat){
+                    //do_wait_write();
+                    do_write_header();
+                  }
+                  else{
+                    do_write_header();
+                  }
+                }
+              }
+            }
+            else
+            {
+              std::cout << "error in server do write header" << ec.message() << std::endl;
+              out_socket_.close();
+              //room_.leave(shared_from_this());
+            }
+          });
+    }
+    else{
+      asio::async_write(socket_,
+          asio::buffer(&write_msgs_.front().header,
+            sizeof(message_header)),
+          [this, self](std::error_code ec, std::size_t n/*length*/)
+          {
+            std::cout << "### Replied success message:" << n << std::endl;
+            if (!ec)
+            {
               write_msgs_.pop_front();
               if (!write_msgs_.empty())
               {
                 do_write_header();
               }
             }
-          }
-          else
-          {
-            std::cout << "error in server do write header" << ec.message() << std::endl;
-            out_socket_.close();
-            //room_.leave(shared_from_this());
-          }
-        });
+            else
+            {
+              std::cout << "error in server do write reply header" << ec.message() << std::endl;
+              out_socket_.close();
+              //room_.leave(shared_from_this());
+            }
+          });
+    }
   }
 
   void do_write_body()
@@ -201,7 +312,14 @@ private:
             write_msgs_.pop_front();
             if (!write_msgs_.empty())
             {
-              do_write_header();
+              //do_write_header();
+              if(overheat){
+                //do_wait_write();
+                do_write_header();
+              }
+              else{
+                do_write_header();
+              }
             }
           }
           else
@@ -213,11 +331,15 @@ private:
         });
   }
 
+
+
   tcp::socket socket_;
   tcp::socket out_socket_;
   data_message read_msg_;
   data_message_queue write_msgs_;
   uint32_t req_out_;
+  uint32_t queued_message_num;
+  asio::steady_timer my_timer;
 };
 
 //----------------------------------------------------------------------
@@ -295,13 +417,16 @@ public:
   message_client(asio::io_context& io_context,
       const tcp::resolver::results_type& endpoints)
     : io_context_(io_context),
-      socket_(io_context)
+      socket_(io_context),
+      queued_message_num(0)
   {
     do_connect(endpoints);
   }
 
   void write(const data_message& msg)
   {
+    queued_message_num++;
+    if(queued_message_num > 5){ overheat = 1; }
     asio::post(io_context_,
         [this, msg]()
         {
@@ -309,6 +434,7 @@ public:
           write_msgs_.push_back(msg);
           if (!write_in_progress)
           {
+            std::cout << "writing header" << std::endl;
             do_write_header();
           }
         });
@@ -327,7 +453,7 @@ private:
         {
           if (!ec)
           {
-            //do_read_header();
+            do_read_header();
           }
           else
           {
@@ -346,13 +472,15 @@ private:
         {
           if (!ec)
           {
-            std::cout << "Received:" << n << std::endl;
+            std::cout << "###  Received:" << n << std::endl;
+            if(--queued_message_num < 3){ overheat = 0; }
             if(read_msg_.header.size > 0){
               read_msg_.data_buf.resize(read_msg_.header.size);
               do_read_body();
             }
             else{
               //add to read message queue
+              do_read_header();
             }
           }
           else
@@ -388,8 +516,9 @@ private:
   {
     asio::async_write(socket_,
         asio::buffer(&write_msgs_.front().header, sizeof(message_header)),
-        [this](std::error_code ec, std::size_t /*length*/)
+        [this](std::error_code ec, std::size_t n/*length*/)
         {
+          //std::cout << "header written " << n << std::endl;
           if (!ec)
           {
             if (write_msgs_.front().data_buf.size() > 0)
@@ -416,8 +545,9 @@ private:
   {
     asio::async_write(socket_,
         asio::buffer(write_msgs_.front().data_buf),
-        [this](std::error_code ec, std::size_t /*length*/)
+        [this](std::error_code ec, std::size_t n/*length*/)
         {
+          std::cout << "actual write " << n << std::endl;
           if (!ec)
           {
             write_msgs_.pop_front();
@@ -440,4 +570,5 @@ private:
   tcp::socket socket_;
   data_message read_msg_;
   data_message_queue write_msgs_;
+  uint32_t queued_message_num;
 };
