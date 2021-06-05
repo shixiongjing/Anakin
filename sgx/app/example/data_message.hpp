@@ -144,7 +144,9 @@ private:
           }
           else
           {
-            std::cout << "Received:" << n << std::endl;
+            //std::cout << "Received:" << n << std::endl;
+            std::cout << inf_time.count()
+              << " seconds elapsed during only inference" << std::endl;
             std::cout << "[Error] in server do read header " << ec.message() << std::endl;
           }
         });
